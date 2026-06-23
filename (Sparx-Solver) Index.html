@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sparx Solver v3</title>
+
+  <!-- Math.js (offline advanced maths engine) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #020617;
+      --text: #e5e7eb;
+      --border: #1f2937;
+      --input-bg: #020617;
+      --input-border: #374151;
+    }
+    .light {
+      --bg: #f5f5f5;
+      --panel: #ffffff;
+      --text: #111;
+      --border: #ccc;
+      --input-bg: #fff;
+      --input-border: #bbb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+    }
+    .sidebar {
+      width: 220px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+    }
+    .logo {
+      font-weight: 700;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px 20px;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: #9ca3af;
+    }
+    .panel {
+      background: var(--panel);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    textarea, input[type="file"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .buttons { display: flex; gap: 8px; }
+    button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .primary { background: #1d4ed8; color: white; }
+    .ghost { background: var(--panel); border: 1px solid var(--input-border); color: #9ca3af; }
+    .result-panel {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 12px;
+      height: 100%;
+    }
+    .card {
+      background: var(--panel);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 12px;
+      overflow: auto;
+    }
+    .mono { white-space: pre-wrap; font-family: monospace; }
+    #previewImg { max-width: 100%; display: none; margin-top: 8px; border-radius: 8px; }
+
+    /* Popup for API key */
+    #apiPopup {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #00000088;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    #apiBox {
+      background: var(--panel);
+      padding: 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">⚡ Sparx Solver</div>
+    <label>Answer‑Only Mode</label>
+    <input type="checkbox" id="answerOnly">
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="top-bar">
+      <h1>General Solver</h1>
+      <div style="display:flex; gap:10px;">
+        <span class="badge">Local + AI Ready</span>
+        <button id="themeToggle" class="ghost">🌙 Dark Mode</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label>Type your question</label>
+      <textarea id="question"></textarea>
+
+      <label>Or upload a screenshot</label>
+      <input type="file" id="imgUpload" accept="image/*">
+      <img id="previewImg">
+
+      <div class="buttons">
+        <button class="primary" id="solveBtn">Solve</button>
+        <button class="ghost" id="aiBtn">AI Mode</button>
+      </div>
+    </div>
+
+    <div class="result-panel">
+      <div class="card">
+        <h2>Answer</h2>
+        <div id="answer" class="mono">No answer yet.</div>
+      </div>
+      <div class="card">
+        <h2>Steps / Explanation</h2>
+        <div id="steps" class="mono">Nothing yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key Popup -->
+  <div id="apiPopup">
+    <div id="apiBox">
+      <h3>Enter AI API Key</h3>
+      <input id="apiKeyInput" placeholder="Paste your API key">
+      <button id="saveKey" class="primary">Save</button>
+      <button id="cancelKey" class="ghost">Cancel</button>
+    </div>
+  </div>
+
+<script>
+/* ============================
+   THEME TOGGLE
+============================ */
+let isLight = false;
+document.getElementById("themeToggle").onclick = () => {
+  isLight = !isLight;
+  document.body.classList.toggle("light", isLight);
+  document.getElementById("themeToggle").textContent =
+    isLight ? "☀️ Light Mode" : "🌙 Dark Mode";
+};
+
+/* ============================
+   SCREENSHOT PREVIEW
+============================ */
+document.getElementById("imgUpload").onchange = function () {
+  const file = this.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById("previewImg");
+    img.src = e.target.result;
+    img.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+};
+
+/* ============================
+   LOCAL MATH ENGINE (Math.js)
+============================ */
+function localSolve(expr) {
+  try {
+    const simplified = math.simplify(expr).toString();
+    const result = math.evaluate(expr);
+
+    return {
+      answer: result,
+      steps: `Simplified: ${simplified}\nEvaluated: ${result}`
+    };
+  } catch {
+    return { answer: null, steps: "Local engine could not solve this." };
+  }
+}
+
+/* ============================
+   AI MODE (optional)
+============================ */
+let userAPIKey = null;
+
+async function aiSolve(expr) {
+  if (!userAPIKey) {
+    document.getElementById("apiPopup").style.display = "flex";
+    return null;
+  }
+
+  const body = {
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: "Solve this maths problem with steps: " + expr }]
+  };
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + userAPIKey
+    },
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || "AI error.";
+}
+
+/* ============================
+   BUTTONS
+============================ */
+document.getElementById("solveBtn").onclick = () => {
+  const q = document.getElementById("question").value.trim();
+  if (!q) return;
+
+  const result = localSolve(q);
+
+  document.getElementById("answer").textContent = result.answer;
+  document.getElementById("steps").textContent =
+    document.getElementById("answerOnly").checked
+      ? "Answer‑only mode enabled."
+      : result.steps;
+};
+
+document.getElementById("aiBtn").onclick = async () => {
+  const q = document.getElementById("question").value.trim();
+  if (!q) return;
+
+  const ai = await aiSolve(q);
+  if (!ai) return;
+
+  document.getElementById("answer").textContent = "AI Response";
+  document.getElementById("steps").textContent = ai;
+};
+
+/* ============================
+   API KEY POPUP
+============================ */
+document.getElementById("saveKey").onclick = () => {
+  userAPIKey = document.getElementById("apiKeyInput").value.trim();
+  document.getElementById("apiPopup").style.display = "none";
+};
+
+document.getElementById("cancelKey").onclick = () => {
+  document.getElementById("apiPopup").style.display = "none";
+};
+</script>
+
+</body>
+</html>
